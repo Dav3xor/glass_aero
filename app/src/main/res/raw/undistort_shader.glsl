@@ -39,17 +39,17 @@ void main()
     // The example had two, I added 3 and 4.
     float coefficientTerm  = distortionCoefficients.x * radiusSquared +
                              distortionCoefficients.y * radiusQuadrupled +
-                             distortionCoefficients.z * radiusSextupled;
+                             distortionCoefficients.z * radiusSextupled +
                              distortionCoefficients.w * radiusOctupled;
     lensCoordinates *= focalLength;
 
     vec2 distortedUV = (((lensCoordinates) + (lensCoordinates) * (coefficientTerm)));
 
     // Tangential correction
-    distortedUV.x += tangentialCoefficients[1]*(radiusSquared+2*lensCoordinates.x*lensCoordinates.x) +
-                     2*tangentialCoefficients[0]*lensCoordinates.x*lensCoordinates.y;
-    distortedUV.y += tangentialCoefficients[0]*(radiusSquared+2*lensCoordinates.y*lensCoordinates.y) +
-                     2*tangentialCoefficients[1]*lensCoordinates.x*lensCoordinates.y;
+    distortedUV.x += tangentialCoefficients[1]*(radiusSquared+2.0*lensCoordinates.x*lensCoordinates.x) +
+                     2.0*tangentialCoefficients[0]*lensCoordinates.x*lensCoordinates.y;
+    distortedUV.y += tangentialCoefficients[0]*(radiusSquared+2.0*lensCoordinates.y*lensCoordinates.y) +
+                     2.0*tangentialCoefficients[1]*lensCoordinates.x*lensCoordinates.y;
 
     vec2 resultUV = (distortedUV + opticalCenterUV)/focalLength + .5;
 
