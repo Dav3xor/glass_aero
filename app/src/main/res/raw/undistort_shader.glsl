@@ -1,33 +1,62 @@
 precision mediump float;
 
-uniform vec4 uColor;
-in vec2 vTexture;
+uniform vec2 focalLength;
+uniform vec2 opticalCenter;
+uniform vec4 distortionCoefficients;
+uniform vec2 tangentialCoefficients;
+uniform vec2 imageSize;
+
+varying vec2 vTexture;
 
 uniform sampler2D uTexture;
+/**
+ * Loosely based on:
+ *
+ * http://stackoverflow.com/questions/25871452/distortion-correction-with-gpu-shader-bug
+ *
+ * But with tangential correction added, fixed handling of units, and rendering out of
+ * bounds pixels as black.
+ *
+ */
 
 void main()
 {
-    vec2 focalLength = vec2(1024.568f, 768.699f);
-    vec2 opticalCenter = vec2(512.0f, 384.0f);
-    vec4 distortionCoefficients = vec4(-0.035109f, -0.002393f, 0.000335f, -0.000449f);
 
-    const vec2 imageSize = vec2(1024.f, 768.f);
+    vec4 black = vec4(0.0,0.0,0.0,1.0);
 
     vec2 opticalCenterUV = opticalCenter / imageSize;
 
     vec2 shiftedUVCoordinates = (vTexture - opticalCenterUV);
 
     vec2 lensCoordinates = (vTexture*imageSize-opticalCenter)/focalLength;
-    //vec2 lensCoordinates = shiftedUVCoordinates / focalLength;
 
-    float radiusSquared = dot(lensCoordinates, lensCoordinates);
+    float radiusSquared    = dot(lensCoordinates, lensCoordinates);
     float radiusQuadrupled = radiusSquared * radiusSquared;
+    float radiusSextupled  = radiusQuadrupled * radiusSquared;
+    float radiusOctupled   = radiusSextupled * radiusSquared;
 
-    float coefficientTerm = distortionCoefficients.x * radiusSquared + distortionCoefficients.y * radiusQuadrupled;
+    // You could add as many coefficient terms as you want, just follow this pattern...
+    // The example had two, I added 3 and 4.
+    float coefficientTerm  = distortionCoefficients.x * radiusSquared +
+                             distortionCoefficients.y * radiusQuadrupled +
+                             distortionCoefficients.z * radiusSextupled;
+                             distortionCoefficients.w * radiusOctupled;
+    lensCoordinates *= focalLength;
 
-    vec2 distortedUV = (((lensCoordinates*focalLength) + (lensCoordinates*focalLength) * (coefficientTerm)));
+    vec2 distortedUV = (((lensCoordinates) + (lensCoordinates) * (coefficientTerm)));
+
+    // Tangential correction
+    distortedUV.x += tangentialCoefficients[1]*(radiusSquared+2*lensCoordinates.x*lensCoordinates.x) +
+                     2*tangentialCoefficients[0]*lensCoordinates.x*lensCoordinates.y;
+    distortedUV.y += tangentialCoefficients[0]*(radiusSquared+2*lensCoordinates.y*lensCoordinates.y) +
+                     2*tangentialCoefficients[1]*lensCoordinates.x*lensCoordinates.y;
 
     vec2 resultUV = (distortedUV + opticalCenterUV)/focalLength + .5;
 
-    gl_FragColor = texture2D(uTexture, resultUV);
+    // render out of bounds as black.
+    if((resultUV.x < 0.0)||(resultUV.x > 1.0)||(resultUV.y < 0.0)||(resultUV.y > 1.0)) {
+        gl_FragColor = black;
+    } else {
+        gl_FragColor = texture2D(uTexture, resultUV);
+    }
 }

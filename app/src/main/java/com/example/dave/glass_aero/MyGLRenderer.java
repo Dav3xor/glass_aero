@@ -3,6 +3,7 @@ package com.example.dave.glass_aero;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.LinearGradient;
 import android.opengl.EGLConfig;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
@@ -26,46 +27,73 @@ public class MyGLRenderer implements GLSurfaceView.Renderer {
     public MyGLRenderer(final Context activityContext){
         context = activityContext;
     }
-    public static int loadShader(int type, String shaderCode){
 
-        // create a vertex shader type (GLES20.GL_VERTEX_SHADER)
-        // or a fragment shader type (GLES20.GL_FRAGMENT_SHADER)
-        int shader = GLES20.glCreateShader(type);
 
-        // add the source code to the shader and compile it
-        GLES20.glShaderSource(shader, shaderCode);
-        GLES20.glCompileShader(shader);
+    @Override
+    public void onSurfaceCreated(GL10 gl, javax.microedition.khronos.egl.EGLConfig config) {
+        //GLES20.glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 
-        return shader;
+        // first create a simple textured square renderer for the
+        // 'before' image.
+        linear                 = new LinearSquare(context);
+
+        // and an undistorted image for after.
+        undistort              = new UnDistort(context);
+
+        //put the original bitmap at the top of the screen
+        linear.setVertices(-.8f, .85f, .8f, .1f);
+        // and the undistorted image underneath.
+        undistort.setVertices(-.8f, -.15f, .8f, -.9f);
+
+
+        undistort.setFocalLength(1100.0f, 800.0f);
+        undistort.setOpticalCenter(512.0f, 384.0f);
+        undistort.setImageSize(1024.0f, 768.0f);
+        undistort.setDistortionCoefficients(0.5f, 0.1f, 0.1f, 0.0f);
+        undistort.setTangentialCoefficients(0.0000f, -0.0003f);
+
+        originalTextureHandle = loadTexture(context,
+                R.drawable.test_pattern);
+
+
+
+
     }
-    public static String loadShaderResource(final Context context,
-                                      final int resourceId)
-    {
-        final InputStream inputStream = context.getResources().openRawResource(
-                resourceId);
-        final InputStreamReader inputStreamReader = new InputStreamReader(
-                inputStream);
-        final BufferedReader bufferedReader = new BufferedReader(
-                inputStreamReader);
 
-        String nextLine;
-        final StringBuilder body = new StringBuilder();
+    public void onDrawFrame(GL10 unused) {
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 
-        try
-        {
-            while ((nextLine = bufferedReader.readLine()) != null)
-            {
-                body.append(nextLine);
-                body.append('\n');
-            }
-        }
-        catch (IOException e)
-        {
-            return null;
-        }
+        // draw the before image
+        linear.Draw(originalTextureHandle);
 
-        return body.toString();
+        // for a demo, make a highly distored image (for fun)
+        Long longtime = ((System.currentTimeMillis())%1000000);
+        Double curtime = longtime.doubleValue()/1000.0;
+
+        // fun house mirror mode, comment these out if you want the simple demo
+        //undistort.setFocalLength((float) (712.0 + Math.cos(curtime)*500.0),
+        //                         (float) (584.0 + Math.sin(curtime)*300.0));
+
+        //undistort.setOpticalCenter((float) (512.0 + Math.sin(curtime) * 10.0),
+        //                           (float) (384.0 + Math.cos(curtime) * 10.0));
+
+        //undistort.setDistortionCoefficients((float) (Math.sin(curtime) * .8),
+        //                                    (float) (Math.cos(curtime) * .8),
+        //                                    (float) (Math.sin(curtime) * .5),
+        //                                    (float) (Math.cos(curtime) * .5));
+        //undistort.setTangentialCoefficients((float) Math.sin(curtime)*.0002f,
+        //                                    (float) Math.cos(curtime)*.0002f);
+
+        undistort.Draw(originalTextureHandle);
+
+
+
     }
+
+    public void onSurfaceChanged(GL10 unused, int width, int height) {
+        GLES20.glViewport(0, 0, width, height);
+    }
+
     public static int loadTexture(final Context context, final int resourceId)
     {
         final int[] textureHandle = new int[1];
@@ -101,152 +129,17 @@ public class MyGLRenderer implements GLSurfaceView.Renderer {
 
         return textureHandle[0];
     }
-    @Override
-    public void onSurfaceCreated(GL10 gl, javax.microedition.khronos.egl.EGLConfig config) {
-        //GLES20.glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-        beforeBuffer           = makeSquare(-.8f, .9f, .8f, .15f);
-        afterBuffer            = makeSquare(-.8f, -.15f, .8f, -.9f);
-        textureBuffer          = makeTextureSquare();
-        String vertexSource    = loadShaderResource(context, R.raw.vertex_shader);
-        String fragmentSource  = loadShaderResource(context, R.raw.fragment_shader);
-        String undistortSource = loadShaderResource(context, R.raw.undistort_shader);
-
-        vertexShader           = loadShader(GLES20.GL_VERTEX_SHADER,
-                                            vertexSource);
-        fragmentShader         = loadShader(GLES20.GL_FRAGMENT_SHADER,
-                                            fragmentSource);
-        undistortShader        = loadShader(GLES20.GL_FRAGMENT_SHADER,
-                                            undistortSource);
-        shaderProgram          = GLES20.glCreateProgram();
-        undistortProgram       = GLES20.glCreateProgram();
-
-        originalTextureHandle = loadTexture(context,
-                R.drawable.test_pattern);
 
 
-        GLES20.glAttachShader(shaderProgram, vertexShader);
-        GLES20.glAttachShader(shaderProgram, fragmentShader);
-        GLES20.glLinkProgram(shaderProgram);
+    private UnDistort undistort;
+    private LinearSquare linear;
 
-        GLES20.glAttachShader(undistortProgram, vertexShader);
-        GLES20.glAttachShader(undistortProgram, undistortShader);
-        GLES20.glLinkProgram(undistortProgram);
-
-        String blah = GLES20.glGetShaderInfoLog(undistortShader);
-
-        // get handles for shaders
-        positionHandle1          = GLES20.glGetAttribLocation(shaderProgram, "aPosition");
-        textureUniformHandle1    = GLES20.glGetUniformLocation(shaderProgram, "uTexture");
-        textureCoordinateHandle1 = GLES20.glGetAttribLocation(shaderProgram, "aTexture");
-        colorHandle1             = GLES20.glGetUniformLocation(shaderProgram, "uColor");
-
-        positionHandle2          = GLES20.glGetAttribLocation(undistortProgram, "aPosition");
-        textureUniformHandle2    = GLES20.glGetUniformLocation(undistortProgram, "uTexture");
-        textureCoordinateHandle2 = GLES20.glGetAttribLocation(undistortProgram, "aTexture");
-        colorHandle2             = GLES20.glGetUniformLocation(undistortProgram, "uColor");
-    }
-
-
-    public void drawSquare(int shader, FloatBuffer buf) {
-
-    }
-    public void onDrawFrame(GL10 unused) {
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        GLES20.glUseProgram(shaderProgram);
-
-        // Enable a handle to the triangle vertices
-        GLES20.glEnableVertexAttribArray(positionHandle1);
-        GLES20.glEnableVertexAttribArray(textureCoordinateHandle1);
-
-
-        // get handle to fragment shader's vColor member
-
-
-        // Set color for drawing the triangle
-        GLES20.glUniform4fv(colorHandle1, 1, color, 0);
-
-
-        // Draw the before rectangle
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
-
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, originalTextureHandle);
-        GLES20.glUniform1i(textureUniformHandle1, 0);
-        GLES20.glUniform1i(textureUniformHandle2, 0);
-        GLES20.glVertexAttribPointer(positionHandle1, 3,
-                GLES20.GL_FLOAT, false,
-                stride, beforeBuffer);
-
-
-        GLES20.glVertexAttribPointer(textureCoordinateHandle1, 2,
-                GLES20.GL_FLOAT, false,
-                8, textureBuffer);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-
-
-        // Draw the after rectangle
-        GLES20.glUseProgram(undistortProgram);
-        GLES20.glUniform4fv(colorHandle2, 1, color, 0);
-        GLES20.glEnableVertexAttribArray(positionHandle2);
-        GLES20.glEnableVertexAttribArray(textureCoordinateHandle2);
-        GLES20.glVertexAttribPointer(positionHandle2, 3,
-                GLES20.GL_FLOAT, false,
-                stride, afterBuffer);
-        GLES20.glVertexAttribPointer(textureCoordinateHandle2, 2,
-                GLES20.GL_FLOAT, false,
-                8, textureBuffer);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
-        GLES20.glDisableVertexAttribArray(positionHandle2);
-    }
-
-    public void onSurfaceChanged(GL10 unused, int width, int height) {
-        GLES20.glViewport(0, 0, width, height);
-    }
-
-
-    private FloatBuffer makeSquare(float minx, float miny, float maxx, float maxy) {
-        ByteBuffer bb = ByteBuffer.allocateDirect(stride * 4);
-        bb.order(ByteOrder.nativeOrder());
-        FloatBuffer buf = bb.asFloatBuffer();
-        buf.put(new float[]{minx, maxy, 0.0f,
-                            maxx, maxy, 0.0f,
-                            minx, miny, 0.0f,
-                            maxx, miny, 0.0f,});
-        buf.position(0);
-        return buf;
-    }
-
-    private FloatBuffer makeTextureSquare() {
-        ByteBuffer bb = ByteBuffer.allocateDirect(8 * 4);
-        bb.order(ByteOrder.nativeOrder());
-        FloatBuffer buf = bb.asFloatBuffer();
-        buf.put(new float[]{0.0f, 1.0f,
-                            1.0f, 1.0f,
-                            0.0f, 0.0f,
-                            1.0f, 0.0f});
-        buf.position(0);
-        return buf;
-    }
-
-    float color[] = {0.0f, .2f, 0.0f, 1.0f};
-    private final int stride=12;
-    private FloatBuffer beforeBuffer;
-    private FloatBuffer afterBuffer;
-    private FloatBuffer textureBuffer;
     private Context context;
-    private int shaderProgram;
-    private int undistortProgram;
-    private int vertexShader;
-    private int fragmentShader;
-    private int undistortShader;
+
     private int originalTextureHandle;
 
-    private int positionHandle1;
-    private int colorHandle1;
-    private int textureUniformHandle1;
-    private int textureCoordinateHandle1;
-    private int positionHandle2;
-    private int colorHandle2;
-    private int textureUniformHandle2;
-    private int textureCoordinateHandle2;
+
+
+
 }
 
